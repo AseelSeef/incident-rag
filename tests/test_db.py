@@ -4,7 +4,7 @@ import psycopg
 import pytest
 
 from app.config import settings
-from app.ingestion.db import upsert_document
+from app.ingestion.db import existing_urls, upsert_document
 from app.ingestion.sources import Source
 
 
@@ -123,3 +123,14 @@ def test_does_not_commit(conn):
     assert conn.execute(
         "SELECT 1 FROM documents WHERE source_url = %s", (url,)
     ).fetchone() is None
+
+
+def test_existing_urls_includes_stored_documents(conn):
+    upsert_document(conn, make_source(url="https://example.com/a"), "a")
+    upsert_document(conn, make_source(url="https://example.com/b"), "b")
+
+    assert {"https://example.com/a", "https://example.com/b"} <= existing_urls(conn)
+
+
+def test_existing_urls_excludes_unknown_url(conn):
+    assert "https://example.com/never-stored" not in existing_urls(conn)

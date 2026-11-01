@@ -31,3 +31,9 @@ def upsert_document(conn: psycopg.Connection, source: Source, content: str) -> i
         },
     ).fetchone()
     return row[0]
+
+
+def existing_urls(conn: psycopg.Connection) -> set[str]:
+    """Return the source URLs of all documents already stored."""
+    rows = conn.execute("SELECT source_url FROM documents").fetchall()
+    return {url for (url,) in rows}
