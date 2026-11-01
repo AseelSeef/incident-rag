@@ -5,7 +5,10 @@ CREATE TABLE IF NOT EXISTS documents (
     title       TEXT NOT NULL,
     source_url  TEXT NOT NULL UNIQUE,
     company     TEXT,
-    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    published   DATE,
+    content     TEXT NOT NULL,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 -- The vector size must match the embedding model you choose (1536 is a placeholder).
