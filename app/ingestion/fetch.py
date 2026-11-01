@@ -18,7 +18,10 @@ class FetchError(Exception):
 
 
 def make_client(timeout: float = 20.0) -> httpx.Client:
-    headers = {"User-Agent": USER_AGENT}
+    headers = {
+        "User-Agent": USER_AGENT,
+        "Accept-Language": "en-US,en;q=0.9"
+    }
     return httpx.Client(headers=headers, timeout=timeout, follow_redirects=True)
 
 
