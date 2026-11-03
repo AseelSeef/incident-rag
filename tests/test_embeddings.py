@@ -1,6 +1,8 @@
 import math
 
-from app.embeddings import EMBEDDING_DIM, embed_texts
+import pytest
+
+from app.embeddings import CACHE_DIR, EMBEDDING_DIM, embed_query, embed_texts
 
 
 def dot(a: list[float], b: list[float]) -> float:
@@ -62,3 +64,53 @@ def test_batch_size_does_not_change_results():
 
     for a, b in zip(small, large):
         assert dot(a, b) > 0.999
+
+
+# --- embed_query ---
+
+
+def test_query_vector_has_right_size_and_unit_length():
+    vector = embed_query("why did the database go down?")
+
+    assert len(vector) == EMBEDDING_DIM
+    assert math.isclose(math.sqrt(dot(vector, vector)), 1.0, abs_tol=1e-3)
+
+
+@pytest.mark.parametrize("question", ["", "   ", "\n\t "])
+def test_empty_question_raises(question):
+    with pytest.raises(ValueError):
+        embed_query(question)
+
+
+def test_surrounding_whitespace_is_ignored():
+    plain = embed_query("database outage")
+    padded = embed_query("  \n database outage \t ")
+
+    assert dot(plain, padded) > 0.999
+
+
+def test_query_uses_instruction_prefix():
+    # The query instruction should make the vector differ from embedding the bare text.
+    (as_document,) = embed_texts(["database outage"])
+    as_query = embed_query("database outage")
+
+    assert dot(as_document, as_query) < 0.999
+
+
+def test_query_finds_relevant_chunk():
+    chunks = [
+        "The primary database ran out of connections and the API returned errors.",
+        "We updated the marketing site with a new pricing page.",
+        "Our office will be closed for the public holiday.",
+    ]
+    chunk_vectors = embed_texts(chunks)
+    query = embed_query("why did the API fail?")
+
+    scores = [dot(query, v) for v in chunk_vectors]
+    assert scores.index(max(scores)) == 0
+
+
+def test_cache_dir_is_inside_project():
+    project_root = CACHE_DIR.parents[1]
+
+    assert (project_root / "pyproject.toml").exists()
