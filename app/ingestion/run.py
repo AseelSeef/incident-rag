@@ -96,7 +96,7 @@ def main() -> None:
     if args.limit is not None:
         sources = sources[: args.limit]
 
-    with psycopg.connect(settings.database_url) as conn, make_client() as client:
+    with psycopg.connect(settings.database_url, connect_timeout=5) as conn, make_client() as client:
         report = ingest(conn, client, sources, force=args.force, delay=args.delay)
 
     print_report(report)
