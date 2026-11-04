@@ -1,6 +1,9 @@
 from datetime import date
 
-from app.ingestion.db import existing_urls, upsert_document
+import pytest
+
+from app.embeddings import EMBEDDING_DIM
+from app.ingestion.db import existing_urls, replace_chunks, upsert_document
 from app.ingestion.sources import Source
 
 
@@ -116,3 +119,100 @@ def test_existing_urls_includes_stored_documents(conn):
 
 def test_existing_urls_excludes_unknown_url(conn):
     assert "https://example.com/never-stored" not in existing_urls(conn)
+
+
+# --- replace_chunks ---
+
+
+def vec(value: float) -> list[float]:
+    """A 384-dim test vector whose first number identifies it."""
+    return [float(value)] + [0.0] * (EMBEDDING_DIM - 1)
+
+
+def stored_chunks(conn, doc_id: int):
+    """(chunk_index, content, first number of the embedding) for each chunk, in index order."""
+    return conn.execute(
+        "SELECT chunk_index, content, embedding[1] FROM ("
+        "  SELECT chunk_index, content, embedding::real[] AS embedding"
+        "  FROM chunks WHERE document_id = %s"
+        ") c ORDER BY chunk_index",
+        (doc_id,),
+    ).fetchall()
+
+
+def test_replace_chunks_stores_in_order(conn):
+    doc_id = upsert_document(conn, make_source(), "content")
+
+    replace_chunks(conn, doc_id, ["first", "second", "third"], [vec(1), vec(2), vec(3)])
+
+    assert stored_chunks(conn, doc_id) == [(0, "first", 1.0), (1, "second", 2.0), (2, "third", 3.0)]
+
+
+def test_replace_chunks_removes_old_chunks(conn):
+    doc_id = upsert_document(conn, make_source(), "content")
+    replace_chunks(conn, doc_id, ["old a", "old b", "old c"], [vec(1), vec(2), vec(3)])
+
+    replace_chunks(conn, doc_id, ["new a"], [vec(9)])
+
+    assert stored_chunks(conn, doc_id) == [(0, "new a", 9.0)]
+
+
+def test_replace_chunks_with_empty_list_clears_document(conn):
+    doc_id = upsert_document(conn, make_source(), "content")
+    replace_chunks(conn, doc_id, ["a", "b"], [vec(1), vec(2)])
+
+    replace_chunks(conn, doc_id, [], [])
+
+    assert stored_chunks(conn, doc_id) == []
+
+
+def test_replace_chunks_leaves_other_documents_alone(conn):
+    doc_a = upsert_document(conn, make_source(url="https://example.com/a"), "a")
+    doc_b = upsert_document(conn, make_source(url="https://example.com/b"), "b")
+    replace_chunks(conn, doc_b, ["b chunk"], [vec(5)])
+
+    replace_chunks(conn, doc_a, ["a chunk"], [vec(1)])
+    replace_chunks(conn, doc_a, ["a chunk v2"], [vec(2)])
+
+    assert stored_chunks(conn, doc_b) == [(0, "b chunk", 5.0)]
+
+
+@pytest.mark.parametrize("n_chunks, n_embeddings", [(2, 1), (1, 2), (0, 1)])
+def test_replace_chunks_mismatched_lengths_raise(conn, n_chunks, n_embeddings):
+    doc_id = upsert_document(conn, make_source(), "content")
+    replace_chunks(conn, doc_id, ["keep me"], [vec(1)])
+
+    with pytest.raises(ValueError, match="chunks but"):
+        replace_chunks(conn, doc_id, ["x"] * n_chunks, [vec(0)] * n_embeddings)
+
+    # Checked before deleting, so the existing chunks survive.
+    assert stored_chunks(conn, doc_id) == [(0, "keep me", 1.0)]
+
+
+def test_replace_chunks_does_not_commit(conn):
+    doc_id = upsert_document(conn, make_source(), "content")
+    replace_chunks(conn, doc_id, ["a"], [vec(1)])
+    conn.rollback()
+
+    (count,) = conn.execute(
+        "SELECT count(*) FROM chunks WHERE document_id = %s", (doc_id,)
+    ).fetchone()
+    assert count == 0
+
+
+def test_deleting_document_deletes_its_chunks(conn):
+    doc_id = upsert_document(conn, make_source(), "content")
+    replace_chunks(conn, doc_id, ["a", "b"], [vec(1), vec(2)])
+
+    conn.execute("DELETE FROM documents WHERE id = %s", (doc_id,))
+
+    assert stored_chunks(conn, doc_id) == []
+
+
+def test_chunks_embedding_size_matches_model(conn):
+    # vector(n) in db/init.sql must match the embedding model; for vector columns atttypmod is n.
+    (dim,) = conn.execute(
+        "SELECT atttypmod FROM pg_attribute "
+        "WHERE attrelid = 'chunks'::regclass AND attname = 'embedding'"
+    ).fetchone()
+    assert dim == EMBEDDING_DIM
