@@ -8,7 +8,10 @@ CREATE TABLE IF NOT EXISTS documents (
     published   DATE,
     content     TEXT NOT NULL,
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+    updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+    -- updated_at of the version that was chunked and embedded; NULL = never indexed.
+    -- The document needs re-indexing when updated_at > indexed_at.
+    indexed_at  TIMESTAMPTZ
 );
 
 -- The vector size must match the embedding model (384 dimensions).

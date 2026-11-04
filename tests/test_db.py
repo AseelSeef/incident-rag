@@ -87,6 +87,43 @@ def test_update_bumps_updated_at(conn):
     assert age_ok
 
 
+def backdate(conn, doc_id: int) -> None:
+    """now() is fixed for the whole transaction, so move updated_at back to see any change."""
+    conn.execute(
+        "UPDATE documents SET updated_at = now() - interval '1 day' WHERE id = %s", (doc_id,)
+    )
+
+
+def updated_at(conn, doc_id: int):
+    (value,) = conn.execute(
+        "SELECT updated_at FROM documents WHERE id = %s", (doc_id,)
+    ).fetchone()
+    return value
+
+
+def test_same_content_keeps_updated_at(conn):
+    doc_id = upsert_document(conn, make_source(), "same text")
+    backdate(conn, doc_id)
+    before = updated_at(conn, doc_id)
+
+    upsert_document(conn, make_source(), "same text")
+
+    assert updated_at(conn, doc_id) == before
+
+
+def test_metadata_change_alone_keeps_updated_at(conn):
+    # Title/company/date are still saved, but don't count as an edit: chunks come from the text.
+    doc_id = upsert_document(conn, make_source(), "same text")
+    backdate(conn, doc_id)
+    before = updated_at(conn, doc_id)
+
+    upsert_document(conn, make_source(title="Renamed", company="Acme Inc"), "same text")
+
+    title, _, company, _, _ = fetch_row(conn, doc_id)
+    assert (title, company) == ("Renamed", "Acme Inc")
+    assert updated_at(conn, doc_id) == before
+
+
 def test_different_urls_get_different_ids(conn):
     a = upsert_document(conn, make_source(url="https://example.com/a"), "a")
     b = upsert_document(conn, make_source(url="https://example.com/b"), "b")

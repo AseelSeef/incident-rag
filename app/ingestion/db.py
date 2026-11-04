@@ -10,7 +10,11 @@ UPSERT_SQL = """
         company    = EXCLUDED.company,
         published  = EXCLUDED.published,
         content    = EXCLUDED.content,
-        updated_at = now()
+        -- Only a change to the text counts as an edit, so unchanged documents aren't re-indexed.
+        updated_at = CASE
+            WHEN documents.content IS DISTINCT FROM EXCLUDED.content THEN now()
+            ELSE documents.updated_at
+        END
     RETURNING id
 """
 
