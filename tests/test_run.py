@@ -6,16 +6,26 @@ from app.ingestion.run import Report, ingest, print_report
 from app.ingestion.sources import Source
 
 PARAGRAPHS = [
-    "At 14:02 UTC a configuration change was rolled out to the primary database cluster. "
-    "Within minutes, connection pools were exhausted and API error rates climbed sharply.",
-    "The on-call engineer paged the database team, who identified the faulty change and "
-    "began a rollback while traffic was shifted to a secondary region.",
-    "Error rates returned to normal at 14:47 UTC. Some customers saw delayed webhooks for "
-    "a further twenty minutes while queued events were replayed.",
-    "The root cause was a missing validation step in the deploy pipeline, which allowed a "
-    "pool size of zero to reach production without review.",
-    "Action items: add schema validation for database config, require a canary stage for "
-    "all cluster changes, and alert on connection pool saturation.",
+    (
+        "At 14:02 UTC a configuration change was rolled out to the primary database cluster. "
+        "Within minutes, connection pools were exhausted and API error rates climbed sharply."
+    ),
+    (
+        "The on-call engineer paged the database team, who identified the faulty change and "
+        "began a rollback while traffic was shifted to a secondary region."
+    ),
+    (
+        "Error rates returned to normal at 14:47 UTC. Some customers saw delayed webhooks for "
+        "a further twenty minutes while queued events were replayed."
+    ),
+    (
+        "The root cause was a missing validation step in the deploy pipeline, which allowed a "
+        "pool size of zero to reach production without review."
+    ),
+    (
+        "Action items: add schema validation for database config, require a canary stage for "
+        "all cluster changes, and alert on connection pool saturation."
+    ),
 ]
 GOOD_HTML = (
     "<html><body><article><h1>Outage postmortem</h1>"

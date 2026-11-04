@@ -1,3 +1,5 @@
+from itertools import pairwise
+
 import pytest
 
 from app.ingestion.chunk import chunk_text
@@ -99,14 +101,14 @@ def test_words_are_not_cut_in_half():
 def test_consecutive_chunks_overlap():
     chunks = chunk_text(numbered_words(500), max_chars=200, overlap=50)
 
-    for prev, nxt in zip(chunks, chunks[1:]):
+    for prev, nxt in pairwise(chunks):
         assert set(prev.split()) & set(nxt.split()), f"no overlap between {prev!r} and {nxt!r}"
 
 
 def test_zero_overlap_shares_no_words():
     chunks = chunk_text(numbered_words(500), max_chars=200, overlap=0)
 
-    for prev, nxt in zip(chunks, chunks[1:]):
+    for prev, nxt in pairwise(chunks):
         assert not set(prev.split()) & set(nxt.split())
 
 

@@ -1,6 +1,5 @@
 import trafilatura
 
-
 MIN_CHARS = 500
 
 def extract_text(html: str) -> str | None:
