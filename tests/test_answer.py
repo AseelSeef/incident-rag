@@ -11,6 +11,7 @@ from app.rag.answer import (
     Answer,
     answer_question,
     build_prompt,
+    cited_documents,
 )
 from app.rag.llm import LLMError, LLMUnavailable
 from app.retrieval.search import Hit
@@ -364,3 +365,56 @@ def test_setup_errors_are_not_caught():
 def test_other_bugs_are_not_caught():
     with pytest.raises(KeyError):
         ask_failing(KeyError("bug in our code"))
+
+
+# --- cited_documents ---
+
+
+def doc_hit(n: int, url: str) -> Hit:
+    return hit(n, url=url, title=f"Title of {url}")
+
+
+def test_chunks_of_one_document_are_grouped():
+    # The GitLab case: four cited chunks, all from the same postmortem.
+    sources = [doc_hit(n, "https://gitlab.test/pm") for n in range(1, 6)]
+    answer = Answer(text="...", sources=sources, cited=[4, 2, 1, 5])
+
+    assert cited_documents(answer) == [([1, 2, 4, 5], sources[0])]
+
+
+def test_different_documents_stay_separate_ordered_by_lowest_number():
+    sources = [
+        doc_hit(1, "https://a.test"),
+        doc_hit(2, "https://b.test"),
+        doc_hit(3, "https://a.test"),
+        doc_hit(4, "https://c.test"),
+    ]
+    answer = Answer(text="...", sources=sources, cited=[4, 3, 2, 1])
+
+    assert cited_documents(answer) == [
+        ([1, 3], sources[0]),
+        ([2], sources[1]),
+        ([4], sources[3]),
+    ]
+
+
+def test_uncited_sources_are_left_out():
+    sources = [doc_hit(1, "https://a.test"), doc_hit(2, "https://b.test")]
+    answer = Answer(text="...", sources=sources, cited=[2])
+
+    assert cited_documents(answer) == [([2], sources[1])]
+
+
+def test_hit_shown_is_the_first_cited_chunk():
+    sources = [doc_hit(1, "https://a.test"), doc_hit(2, "https://a.test"), doc_hit(3, "https://a.test")]
+    answer = Answer(text="...", sources=sources, cited=[3, 2])
+
+    ((numbers, shown),) = cited_documents(answer)
+    assert numbers == [2, 3]
+    assert shown is sources[1]
+
+
+def test_nothing_cited_gives_empty_list():
+    answer = Answer(text="...", sources=[doc_hit(1, "https://a.test")], cited=[])
+
+    assert cited_documents(answer) == []

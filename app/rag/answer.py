@@ -134,3 +134,45 @@ def answer_question(
         return Answer(text=LLM_NO_ANSWER, sources=hits, cited=[], generated=False)
 
     return Answer(text=text, sources=hits, cited=_cited_numbers(text, len(hits)))
+
+
+def cited_documents(answer: Answer) -> list[tuple[list[int], Hit]]:
+    """The cited sources grouped by document, for showing a reference list.
+
+    Several chunks of one postmortem often come back as separate sources; this lists each
+    document once, with all its numbers: ([1, 2, 4], hit). Documents are ordered by their
+    lowest number, and the numbers are sorted. The Hit is the first cited chunk of the document.
+    """
+    groups: dict[str, tuple[list[int], Hit]] = {}
+    for n in sorted(answer.cited):
+        hit = answer.sources[n - 1]
+        if hit.url in groups:
+            groups[hit.url][0].append(n)
+        else:
+            groups[hit.url] = ([n], hit)
+    return list(groups.values())
+
+
+if __name__ == "__main__":
+    # Try one question end to end: python -m app.rag.answer "Why did GitLab lose data?"
+    # This calls the real API, so it is billed to your key.
+    import sys
+
+    from app.config import settings
+
+    if len(sys.argv) != 2:
+        sys.exit('usage: python -m app.rag.answer "your question"')
+
+    logging.basicConfig(level=logging.WARNING, format="%(levelname)s %(message)s")
+    with psycopg.connect(settings.database_url, connect_timeout=5) as conn:
+        result = answer_question(conn, sys.argv[1])
+
+    print(result.text)
+    print()
+    if result.generated:
+        for numbers, hit in cited_documents(result):
+            refs = "".join(f"[{n}]" for n in numbers)
+            print(f"{refs} {hit.title} - {hit.url}")
+    else:
+        for n, hit in enumerate(result.sources, start=1):
+            print(f"{n}. {hit.title} - {hit.url}")
