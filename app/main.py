@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Iterator
 from contextlib import asynccontextmanager
 from dataclasses import replace
@@ -14,6 +15,11 @@ from app.rag.answer import answer_question, cited_documents
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Uvicorn only configures its own loggers; without this, INFO messages from our code
+    # (like the Claude token usage) are dropped. Runs at startup, so tests are unaffected.
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s - %(message)s")
+    logging.getLogger("httpx2").setLevel(logging.WARNING)  # the SDK's per-request lines
+
     pool = ConnectionPool(
         settings.database_url,
         min_size=1,

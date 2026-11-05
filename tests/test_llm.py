@@ -22,8 +22,13 @@ def thinking_block():
 
 
 class FakeClient:
-    def __init__(self, content, stop_reason="end_turn"):
-        self.response = SimpleNamespace(content=content, stop_reason=stop_reason)
+    def __init__(self, content, stop_reason="end_turn", input_tokens=1200, output_tokens=300):
+        self.response = SimpleNamespace(
+            content=content,
+            stop_reason=stop_reason,
+            model="claude-test-model",
+            usage=SimpleNamespace(input_tokens=input_tokens, output_tokens=output_tokens),
+        )
         self.calls: list[dict] = []
         self.messages = self  # so client.messages.create(...) works
 
@@ -173,3 +178,39 @@ def test_refusal_is_not_unavailable(fake):
         call_claude("system", "user")
 
     assert not isinstance(caught.value, LLMUnavailable)
+
+
+# --- usage logging ---
+
+
+def test_usage_is_logged(fake, caplog):
+    fake.client = FakeClient([text_block("ok")], input_tokens=1834, output_tokens=412)
+
+    with caplog.at_level("INFO", logger="app.rag.llm"):
+        call_claude("system", "user")
+
+    assert "input_tokens=1834" in caplog.text
+    assert "output_tokens=412" in caplog.text
+    assert "model=claude-test-model" in caplog.text
+    assert "stop_reason=end_turn" in caplog.text
+
+
+@pytest.mark.parametrize("stop_reason", ["refusal", "max_tokens"])
+def test_usage_is_logged_even_when_the_answer_is_unusable(fake, caplog, stop_reason):
+    # These calls are still billed, so they should still show up in the log.
+    fake.client = FakeClient([], stop_reason=stop_reason, input_tokens=900, output_tokens=16000)
+
+    with caplog.at_level("INFO", logger="app.rag.llm"), pytest.raises(LLMError):
+        call_claude("system", "user")
+
+    assert "output_tokens=16000" in caplog.text
+    assert f"stop_reason={stop_reason}" in caplog.text
+
+
+def test_nothing_is_logged_when_the_call_fails(fake, caplog):
+    fake.client = FailingClient(anthropic.APIConnectionError(request=REQUEST))
+
+    with caplog.at_level("INFO", logger="app.rag.llm"), pytest.raises(LLMUnavailable):
+        call_claude("system", "user")
+
+    assert "claude usage" not in caplog.text

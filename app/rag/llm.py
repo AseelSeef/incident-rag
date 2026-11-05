@@ -1,8 +1,11 @@
+import logging
 from functools import cache
 
 import anthropic
 
 from app.config import settings
+
+log = logging.getLogger(__name__)
 
 
 class LLMError(Exception):
@@ -55,6 +58,16 @@ def call_claude(system: str, user: str) -> str:
         if e.status_code >= 500:  # includes 529 "overloaded"
             raise LLMUnavailable(f"the API returned {e.status_code}") from e
         raise
+
+    # Logged before the stop_reason checks: refused and cut-off calls are billed too.
+    # Thinking tokens are included in output_tokens. Prices: see the Usage page in the Console.
+    log.info(
+        "claude usage: model=%s input_tokens=%s output_tokens=%s stop_reason=%s",
+        response.model,
+        response.usage.input_tokens,
+        response.usage.output_tokens,
+        response.stop_reason,
+    )
 
     if response.stop_reason == "refusal":
         raise LLMError("the model declined to answer")
