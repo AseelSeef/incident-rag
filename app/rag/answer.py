@@ -1,10 +1,11 @@
+import logging
 import re
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import psycopg
 
-from app.rag.llm import call_claude
+from app.rag.llm import LLMError, LLMUnavailable, call_claude
 from app.retrieval.search import Hit, search
 
 SYSTEM_PROMPT = """You answer questions about software incidents using only the numbered sources provided.
@@ -18,6 +19,13 @@ Rules:
 
 NO_SOURCES = "(no sources were found for this question)"  # inside the prompt, for the model
 NO_ANSWER = "I couldn't find any postmortems related to this question."  # shown to the user
+# Shown instead of an answer when the model fails; the sources are still returned.
+LLM_UNAVAILABLE = (
+    "The answer service is unavailable right now. These postmortems look relevant to your question."
+)
+LLM_NO_ANSWER = "I couldn't write an answer to this question. These postmortems look relevant."
+
+log = logging.getLogger(__name__)
 
 # Matches the start of our own tags: <source, </source, <sources, </sources (any case).
 _TAG = re.compile(r"<(/?)(sources?)\b", re.IGNORECASE)
@@ -30,6 +38,9 @@ class Answer:
     text: str
     sources: list[Hit]  # every source given to the model; [N] in text is sources[N - 1]
     cited: list[int]  # source numbers the text cites, in order of first appearance
+    # False when text is one of our own messages (nothing found, or the model failed) rather
+    # than the model's answer; show the sources on their own in that case.
+    generated: bool = True
 
 
 def _neutralize_tags(text: str) -> str:
@@ -99,6 +110,10 @@ def answer_question(
 
     `llm(system, user)` returns the answer text; `search_fn(conn, question, k)` returns hits.
     Both can be swapped out in tests. The model is not called when nothing is found.
+
+    If the model is unavailable, declines or is cut off, the sources found are still returned,
+    with a short message and generated=False, instead of raising. Setup errors (bad API key,
+    unknown model) are not caught: they need fixing, not a fallback.
     """
     question = question.strip()
     if not question:
@@ -106,8 +121,16 @@ def answer_question(
 
     hits = search_fn(conn, question, k)
     if not hits:
-        return Answer(text=NO_ANSWER, sources=[], cited=[])
+        return Answer(text=NO_ANSWER, sources=[], cited=[], generated=False)
 
     system, user = build_prompt(question, hits)
-    text = llm(system, user)
+    try:
+        text = llm(system, user)
+    except LLMUnavailable as e:  # a subclass of LLMError, so it must come first
+        log.warning("model unavailable, returning sources only: %s", e)
+        return Answer(text=LLM_UNAVAILABLE, sources=hits, cited=[], generated=False)
+    except LLMError as e:
+        log.warning("model gave no usable answer, returning sources only: %s", e)
+        return Answer(text=LLM_NO_ANSWER, sources=hits, cited=[], generated=False)
+
     return Answer(text=text, sources=hits, cited=_cited_numbers(text, len(hits)))

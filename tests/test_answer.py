@@ -1,6 +1,10 @@
+import anthropic
+import httpx2
 import pytest
 
 from app.rag.answer import (
+    LLM_NO_ANSWER,
+    LLM_UNAVAILABLE,
     NO_ANSWER,
     NO_SOURCES,
     SYSTEM_PROMPT,
@@ -8,6 +12,7 @@ from app.rag.answer import (
     answer_question,
     build_prompt,
 )
+from app.rag.llm import LLMError, LLMUnavailable
 from app.retrieval.search import Hit
 
 
@@ -238,7 +243,7 @@ def test_model_gets_the_built_prompt():
 def test_no_hits_skips_the_model():
     result, _, llm = ask(hits=[])
 
-    assert result == Answer(text=NO_ANSWER, sources=[], cited=[])
+    assert result == Answer(text=NO_ANSWER, sources=[], cited=[], generated=False)
     assert llm.calls == []
 
 
@@ -285,3 +290,77 @@ def test_cited_number_points_at_the_right_source():
 
     (n,) = result.cited
     assert result.sources[n - 1].url == "https://example.com/2"
+
+
+# --- fallback when the model fails ---
+
+
+class FailingLLM:
+    """Stands in for call_claude() when it raises."""
+
+    def __init__(self, error: Exception):
+        self.error = error
+        self.calls = 0
+
+    def __call__(self, system, user):
+        self.calls += 1
+        raise self.error
+
+
+def ask_failing(error: Exception, hits=None):
+    hits = [hit(1), hit(2)] if hits is None else hits
+    llm = FailingLLM(error)
+    result = answer_question(CONN, "What happened?", llm=llm, search_fn=FakeSearch(hits))
+    return result, hits, llm
+
+
+def test_model_answer_is_marked_generated():
+    result, _, _ = ask()
+
+    assert result.generated is True
+
+
+def test_unavailable_model_returns_sources_with_a_note():
+    result, hits, llm = ask_failing(LLMUnavailable("the model did not answer in time"))
+
+    assert result == Answer(text=LLM_UNAVAILABLE, sources=hits, cited=[], generated=False)
+    assert llm.calls == 1
+
+
+@pytest.mark.parametrize(
+    "reason", ["the model declined to answer", "the answer was cut off (max_tokens reached)"]
+)
+def test_no_usable_answer_returns_sources_with_a_note(reason):
+    result, hits, _ = ask_failing(LLMError(reason))
+
+    assert result == Answer(text=LLM_NO_ANSWER, sources=hits, cited=[], generated=False)
+
+
+def test_unavailable_and_no_answer_have_different_messages():
+    unavailable, _, _ = ask_failing(LLMUnavailable("down"))
+    declined, _, _ = ask_failing(LLMError("declined"))
+
+    assert unavailable.text != declined.text
+
+
+def test_failure_is_logged(caplog):
+    with caplog.at_level("WARNING", logger="app.rag.answer"):
+        ask_failing(LLMUnavailable("could not reach the model"))
+
+    assert "could not reach the model" in caplog.text
+
+
+def test_setup_errors_are_not_caught():
+    # A wrong API key must surface, not be shown as "unavailable".
+    request = httpx2.Request("POST", "https://api.anthropic.com/v1/messages")
+    error = anthropic.AuthenticationError(
+        "invalid x-api-key", response=httpx2.Response(401, request=request), body=None
+    )
+
+    with pytest.raises(anthropic.AuthenticationError):
+        ask_failing(error)
+
+
+def test_other_bugs_are_not_caught():
+    with pytest.raises(KeyError):
+        ask_failing(KeyError("bug in our code"))
