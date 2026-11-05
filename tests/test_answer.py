@@ -1,6 +1,13 @@
 import pytest
 
-from app.rag.answer import NO_SOURCES, SYSTEM_PROMPT, build_prompt
+from app.rag.answer import (
+    NO_ANSWER,
+    NO_SOURCES,
+    SYSTEM_PROMPT,
+    Answer,
+    answer_question,
+    build_prompt,
+)
 from app.retrieval.search import Hit
 
 
@@ -160,3 +167,121 @@ def test_other_angle_brackets_are_unchanged(text):
     _, user = build_prompt("q", [hit(1, content=text)])
 
     assert f"content:\n{text}\n</source>" in user
+
+
+# --- answer_question ---
+
+
+class FakeSearch:
+    """Stands in for search(): returns fixed hits and records how it was called."""
+
+    def __init__(self, hits):
+        self.hits = hits
+        self.calls = []
+
+    def __call__(self, conn, question, k):
+        self.calls.append((conn, question, k))
+        return self.hits
+
+
+class FakeLLM:
+    """Stands in for call_claude(): returns a fixed reply and records the prompts."""
+
+    def __init__(self, reply="An answer [1]."):
+        self.reply = reply
+        self.calls = []
+
+    def __call__(self, system, user):
+        self.calls.append((system, user))
+        return self.reply
+
+
+CONN = object()  # answer_question only passes conn through to search_fn
+
+
+def ask(question="What happened?", hits=None, reply="An answer [1].", k=5):
+    search_fn = FakeSearch([hit(1), hit(2), hit(3)] if hits is None else hits)
+    llm = FakeLLM(reply)
+    result = answer_question(CONN, question, k=k, llm=llm, search_fn=search_fn)
+    return result, search_fn, llm
+
+
+def test_returns_the_model_answer_with_sources():
+    hits = [hit(1), hit(2)]
+
+    result, _, _ = ask(hits=hits, reply="The disk filled up [1].")
+
+    assert result == Answer(text="The disk filled up [1].", sources=hits, cited=[1])
+
+
+def test_passes_question_and_k_to_search():
+    _, search_fn, _ = ask(question="Why did DNS fail?", k=3)
+
+    assert search_fn.calls == [(CONN, "Why did DNS fail?", 3)]
+
+
+def test_question_is_stripped_before_search():
+    _, search_fn, llm = ask(question="  Why did DNS fail? \n")
+
+    assert search_fn.calls[0][1] == "Why did DNS fail?"
+    assert llm.calls[0][1].endswith("Question: Why did DNS fail?")
+
+
+def test_model_gets_the_built_prompt():
+    hits = [hit(1), hit(2)]
+
+    _, _, llm = ask(question="What happened?", hits=hits)
+
+    assert llm.calls == [build_prompt("What happened?", hits)]
+
+
+def test_no_hits_skips_the_model():
+    result, _, llm = ask(hits=[])
+
+    assert result == Answer(text=NO_ANSWER, sources=[], cited=[])
+    assert llm.calls == []
+
+
+@pytest.mark.parametrize("question", ["", "   ", "\n\t"])
+def test_empty_question_raises_before_search(question):
+    search_fn = FakeSearch([hit(1)])
+
+    with pytest.raises(ValueError):
+        answer_question(CONN, question, llm=FakeLLM(), search_fn=search_fn)
+
+    assert search_fn.calls == []
+
+
+@pytest.mark.parametrize(
+    "reply, cited",
+    [
+        ("No citations here.", []),
+        ("Cause [2].", [2]),
+        ("First [3], then [1].", [3, 1]),  # order of first appearance
+        ("Both [2][3].", [2, 3]),  # the [2][3] style the prompt asks for
+        ("Again [1] and [1] and [2] [1].", [1, 2]),  # repeats removed
+        ("Bad [0], [4], [99], good [3].", [3]),  # only 1..3 exist
+        ("Not citations: [a], [ 1 ], [1.5], [-1].", []),
+        # comma lists, which models sometimes write instead of [2][3]
+        ("Both [1, 2].", [1, 2]),
+        ("All [1,2,3].", [1, 2, 3]),
+        ("Spaced [1 , 2].", [1, 2]),
+        ("Mixed [1, 3][2].", [1, 3, 2]),
+        ("Range check [2, 7, 3].", [2, 3]),  # 7 doesn't exist, the rest still count
+        ("Repeat [3, 3, 1].", [3, 1]),
+        ("Broken lists: [1,], [1, a], [,2].", []),
+    ],
+)
+def test_cited_numbers_are_parsed_from_the_answer(reply, cited):
+    result, _, _ = ask(hits=[hit(1), hit(2), hit(3)], reply=reply)
+
+    assert result.cited == cited
+
+
+def test_cited_number_points_at_the_right_source():
+    hits = [hit(1), hit(2), hit(3)]
+
+    result, _, _ = ask(hits=hits, reply="It was the second one [2].")
+
+    (n,) = result.cited
+    assert result.sources[n - 1].url == "https://example.com/2"

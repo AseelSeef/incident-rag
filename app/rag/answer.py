@@ -1,6 +1,11 @@
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 
-from app.retrieval.search import Hit
+import psycopg
+
+from app.rag.llm import call_claude
+from app.retrieval.search import Hit, search
 
 SYSTEM_PROMPT = """You answer questions about software incidents using only the numbered sources provided.
 Rules:
@@ -11,10 +16,20 @@ Rules:
 - Be concise: a short paragraph, or a few bullet points when comparing incidents.
 - Answer in the language of the question."""
 
-NO_SOURCES = "(no sources were found for this question)"
+NO_SOURCES = "(no sources were found for this question)"  # inside the prompt, for the model
+NO_ANSWER = "I couldn't find any postmortems related to this question."  # shown to the user
 
 # Matches the start of our own tags: <source, </source, <sources, </sources (any case).
 _TAG = re.compile(r"<(/?)(sources?)\b", re.IGNORECASE)
+# A citation in the model's answer: [3], or a comma list like [2, 3]. [2][3] gives two matches.
+_CITATION = re.compile(r"\[(\d+(?:\s*,\s*\d+)*)\]")
+
+
+@dataclass
+class Answer:
+    text: str
+    sources: list[Hit]  # every source given to the model; [N] in text is sources[N - 1]
+    cited: list[int]  # source numbers the text cites, in order of first appearance
 
 
 def _neutralize_tags(text: str) -> str:
@@ -57,3 +72,42 @@ def build_prompt(question: str, hits: list[Hit]) -> tuple[str, str]:
 
     user = f"<sources>\n{sources}\n</sources>\n\nQuestion: {question}"
     return SYSTEM_PROMPT, user
+
+
+def _cited_numbers(text: str, n_sources: int) -> list[int]:
+    """Source numbers cited as [N] in the answer, in order of first appearance, without repeats.
+
+    Numbers outside 1..n_sources (a model mistake) are dropped.
+    """
+    seen: list[int] = []
+    for match in _CITATION.finditer(text):
+        for part in match.group(1).split(","):
+            n = int(part)  # int() ignores the surrounding spaces in " 2"
+            if 1 <= n <= n_sources and n not in seen:
+                seen.append(n)
+    return seen
+
+
+def answer_question(
+    conn: psycopg.Connection,
+    question: str,
+    k: int = 5,
+    llm: Callable[[str, str], str] = call_claude,
+    search_fn: Callable[..., list[Hit]] = search,
+) -> Answer:
+    """Search for relevant chunks and ask the model to answer from them, with [N] citations.
+
+    `llm(system, user)` returns the answer text; `search_fn(conn, question, k)` returns hits.
+    Both can be swapped out in tests. The model is not called when nothing is found.
+    """
+    question = question.strip()
+    if not question:
+        raise ValueError("empty question")
+
+    hits = search_fn(conn, question, k)
+    if not hits:
+        return Answer(text=NO_ANSWER, sources=[], cited=[])
+
+    system, user = build_prompt(question, hits)
+    text = llm(system, user)
+    return Answer(text=text, sources=hits, cited=_cited_numbers(text, len(hits)))
