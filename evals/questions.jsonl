@@ -1,0 +1,21 @@
+{"question": "Why did GitLab lose production data?", "expected_urls": ["https://about.gitlab.com/2017/02/10/postmortem-of-database-outage-of-january-31/"]}
+{"question": "Which outage started when a command meant to remove a few servers removed far more than intended?", "expected_urls": ["https://aws.amazon.com/message/41926/"]}
+{"question": "Which outages were caused by DNS problems?", "expected_urls": ["https://github.blog/news-insights/the-library/dns-outage-post-mortem/", "https://blog.rust-lang.org/inside-rust/2023/02/08/dns-outage-portmortem/", "https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/"]}
+{"question": "What happens when Postgres runs out of transaction IDs?", "expected_urls": ["https://mailchimp.com/what-we-learned-from-the-recent-mandrill-outage/"]}
+{"question": "Which incident was caused by an ID column exceeding the 32-bit integer limit?", "expected_urls": ["https://github.blog/news-insights/company-news/github-availability-report-may-2021/"]}
+{"question": "How did a backbone router configuration change take Facebook offline?", "expected_urls": ["https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/"]}
+{"question": "Which outage was triggered by an automatic security update to systemd?", "expected_urls": ["https://www.datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue/"]}
+{"question": "Why was Roblox down for 73 hours?", "expected_urls": ["https://blog.roblox.com/2022/01/roblox-return-to-service-10-28-10-31-2021/"]}
+{"question": "How did a cloud provider accidentally delete a customer's entire private cloud?", "expected_urls": ["https://cloud.google.com/blog/products/infrastructure/details-of-google-cloud-gcve-incident"]}
+{"question": "Which incidents were caused by a loss of power in a data center?", "expected_urls": ["https://blog.cloudflare.com/major-data-center-power-failure-again-cloudflare-code-orange-tested", "https://github.com/blog/2106-january-28th-incident-report"]}
+{"question": "How did a DDoS attack affect Basecamp?", "expected_urls": ["https://signalvnoise.com/posts/3729-basecamp-network-attack-postmortem"]}
+{"question": "How did a single customer's configuration change cause a global CDN outage?", "expected_urls": ["https://www.fastly.com/blog/summary-of-june-8-outage"]}
+{"question": "Why were Atlassian customers' sites deleted?", "expected_urls": ["https://www.atlassian.com/engineering/post-incident-review-april-2022-outage"]}
+{"question": "Which outage was caused by a bot management feature file that doubled in size?", "expected_urls": ["https://blog.cloudflare.com/18-november-2025-outage/"]}
+{"question": "How did a huge order for a penny stock crash a trading platform?", "expected_urls": ["https://zerodha.com/marketintel/bulletin/229363/post-mortem-of-technical-issue-august-29-2019"]}
+{"question": "Why were customers charged multiple times after a Redis failure?", "expected_urls": ["https://www.twilio.com/blog/2013/07/billing-incident-post-mortem-breakdown-analysis-and-root-cause.html"]}
+{"question": "Which incidents were caused by database schema migrations or column type changes?", "expected_urls": ["https://github.blog/news-insights/the-library/github-availability-this-week/", "https://discuss.circleci.com/t/incident-report-november-8-2021-jobs-stuck-in-a-not-running-state/41890"]}
+{"question": "How did an empty backup identifier leak data between databases?", "expected_urls": ["https://blog.turso.tech/incident-2023-12-04-data-leak-and-loss-in-some-free-tier-databases-7cba5bc7"]}
+{"question": "What was AWS's revenue in 2023?", "expected_urls": []}
+{"question": "How do I bake sourdough bread?", "expected_urls": []}
+{"question": "What caused the 2003 Northeast blackout in the US?", "expected_urls": []}

@@ -95,8 +95,9 @@ python -m app.retrieval.search                                  # search only, n
 | `python -m app.ingestion.run` | Fetch and store sources. `--limit N`, `--force` (re-fetch stored URLs), `--delay` |
 | `python -m app.indexing.run` | Chunk and embed new or changed documents. `--force` re-indexes all |
 | `uvicorn app.main:app --reload` | Start the API on port 8000 |
+| `python -m evals.search_eval` | Score search against `evals/questions.jsonl` (free, no Claude calls). `--k N` |
 | `pytest` | Run the tests (database tests are skipped if Postgres isn't running) |
-| `ruff check app tests` | Lint |
+| `ruff check app tests evals` | Lint |
 
 ## Configuration
 
