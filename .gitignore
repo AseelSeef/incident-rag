@@ -9,3 +9,7 @@ __pycache__/
 data/raw/
 *.egg-info/
 .cache/
+
+# eval runs: keep only the named baselines
+evals/runs/answer-pilot*.jsonl
+evals/runs/*.errors.jsonl

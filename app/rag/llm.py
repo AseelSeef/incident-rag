@@ -32,13 +32,16 @@ def _client() -> anthropic.Anthropic:
     )
 
 
-def call_claude(system: str, user: str) -> str:
+def call_claude(system: str, user: str, record: list[dict] | None = None) -> str:
     """Send one question to Claude and return the answer text.
 
     Raises LLMUnavailable when the model can't be reached (timeout, connection error, 429,
     5xx) after the SDK's own retries, and LLMError when it declines or the answer is cut off.
     Other errors (bad key 401, unknown model 404, bad request 400) are setup bugs and are
     raised unchanged so they are not hidden behind "unavailable".
+
+    If `record` is given, the served model, token usage and stop reason of the call are
+    appended to it (the answer eval uses this to measure cost).
     """
     try:
         response = _client().messages.create(
@@ -68,6 +71,15 @@ def call_claude(system: str, user: str) -> str:
         response.usage.output_tokens,
         response.stop_reason,
     )
+    if record is not None:
+        record.append(
+            {
+                "model": response.model,
+                "input_tokens": response.usage.input_tokens,
+                "output_tokens": response.usage.output_tokens,
+                "stop_reason": response.stop_reason,
+            }
+        )
 
     if response.stop_reason == "refusal":
         raise LLMError("the model declined to answer")
