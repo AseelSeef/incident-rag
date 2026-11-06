@@ -14,15 +14,22 @@ log = logging.getLogger(__name__)
 Embedder = Callable[[list[str]], list[list[float]]]
 
 STALE_SQL = """
-    SELECT id, content, updated_at FROM documents
+    SELECT id, content, updated_at, title FROM documents
     WHERE indexed_at IS NULL OR updated_at > indexed_at
     ORDER BY id
 """
-ALL_SQL = "SELECT id, content, updated_at FROM documents ORDER BY id"
+ALL_SQL = "SELECT id, content, updated_at, title FROM documents ORDER BY id"
 
 # Records which version was indexed. If the document was updated again since we read it,
 # updated_at is now later than this value, so the next run picks it up again.
 MARK_INDEXED_SQL = "UPDATE documents SET indexed_at = %s WHERE id = %s"
+
+
+def embedding_text(title: str | None, chunk: str) -> str:
+    """The text that is embedded for a chunk: the document title, a blank line, the chunk."""
+    if not title:  # None or ""
+        return chunk
+    return f"{title}\n\n{chunk}"
 
 
 def index_documents(
@@ -39,9 +46,11 @@ def index_documents(
     """
     documents = conn.execute(ALL_SQL if force else STALE_SQL).fetchall()
 
-    for doc_id, content, version in documents:
+    for doc_id, content, version, title in documents:
         chunks = chunk_text(content)
-        vectors = embed(chunks) if chunks else []
+        # The title is embedded with each chunk (a chunk often doesn't name the company or
+        # system), but the stored content stays the plain chunk.
+        vectors = embed([embedding_text(title, chunk) for chunk in chunks]) if chunks else []
         replace_chunks(conn, doc_id, chunks, vectors)
         conn.execute(MARK_INDEXED_SQL, (version, doc_id))
         conn.commit()

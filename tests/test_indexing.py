@@ -1,7 +1,7 @@
 import pytest
 
 from app.embeddings import EMBEDDING_DIM
-from app.indexing.run import index_documents
+from app.indexing.run import embedding_text, index_documents
 from app.ingestion.db import replace_chunks, upsert_document
 from app.ingestion.sources import Source
 
@@ -93,14 +93,32 @@ def test_indexes_new_document(db, embed):
     assert all(text in LONG_TEXT for _, text in rows)
 
 
-def test_chunks_are_what_was_embedded(db, embed):
+def test_each_chunk_is_embedded_with_the_title(db, embed):
     doc_id = add_document(db, "https://index.test/a")
 
     index_documents(db, embed=embed)
 
     stored = [text for _, text in chunk_rows(db, doc_id)]
-    assert stored == [t for t in embed.embedded() if t in stored]
-    assert set(stored) <= set(embed.embedded())
+    assert embed.calls[-1] == [f"Outage\n\n{text}" for text in stored]
+
+
+def test_stored_content_has_no_title(db, embed):
+    doc_id = add_document(db, "https://index.test/a")
+
+    index_documents(db, embed=embed)
+
+    assert not any(text.startswith("Outage") for _, text in chunk_rows(db, doc_id))
+
+
+def test_embedding_text_puts_the_title_first():
+    assert embedding_text("AWS S3 outage", "The command removed servers.") == (
+        "AWS S3 outage\n\nThe command removed servers."
+    )
+
+
+@pytest.mark.parametrize("title", [None, ""])
+def test_embedding_text_without_a_title_is_the_chunk(title):
+    assert embedding_text(title, "The command removed servers.") == "The command removed servers."
 
 
 def test_returns_number_of_documents_indexed(db, embed):
