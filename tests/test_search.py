@@ -162,8 +162,8 @@ def test_hnsw_setting_does_not_outlive_the_transaction(conn):
     assert conn.execute("SHOW hnsw.ef_search").fetchone()[0] == "40"
 
 
-def chunk(url: str, n: int) -> Hit:
-    return Hit(content=f"{url}-{n}", title="t", company="c", url=url, chunk_index=n, score=0.5)
+def chunk(url: str, n: int, score: float = 0.5) -> Hit:
+    return Hit(content=f"{url}-{n}", title="t", company="c", url=url, chunk_index=n, score=score)
 
 
 def contents(hits: list[Hit]) -> list[str]:
@@ -173,7 +173,7 @@ def contents(hits: list[Hit]) -> list[str]:
 def test_limit_skips_extra_chunks_of_a_document():
     hits = [chunk("a", 0), chunk("a", 1), chunk("a", 2), chunk("b", 0), chunk("a", 3)]
 
-    assert contents(_limit_per_document(hits, k=5, max_per_doc=2)) == ["a-0", "a-1", "b-0"]
+    assert contents(_limit_per_document(hits, k=3, max_per_doc=2)) == ["a-0", "a-1", "b-0"]
 
 
 def test_limit_keeps_the_original_order():
@@ -191,13 +191,42 @@ def test_limit_stops_at_k():
 def test_limit_of_one_gives_one_chunk_per_document():
     hits = [chunk("a", 0), chunk("a", 1), chunk("b", 0), chunk("b", 1), chunk("c", 0)]
 
-    assert contents(_limit_per_document(hits, k=5, max_per_doc=1)) == ["a-0", "b-0", "c-0"]
+    assert contents(_limit_per_document(hits, k=3, max_per_doc=1)) == ["a-0", "b-0", "c-0"]
 
 
-def test_limit_returns_fewer_than_k_when_documents_run_out():
+def test_free_slots_are_filled_with_skipped_chunks():
+    # One long postmortem: the cap alone would leave 2 sources. The other slots would stay
+    # empty, so they go to more of its chunks.
+    hits = [chunk("a", n) for n in range(6)]
+
+    assert contents(_limit_per_document(hits, k=5, max_per_doc=2)) == [
+        "a-0",
+        "a-1",
+        "a-2",
+        "a-3",
+        "a-4",
+    ]
+
+
+def test_other_documents_come_before_backfill():
+    # b fits within the cap, so it gets a slot before a's third chunk.
+    hits = [chunk("a", 0), chunk("a", 1), chunk("a", 2), chunk("b", 0)]
+
+    assert set(contents(_limit_per_document(hits, k=3, max_per_doc=2))) == {"a-0", "a-1", "b-0"}
+
+
+def test_backfilled_result_is_sorted_best_first():
+    hits = [chunk("a", 0, 0.90), chunk("a", 1, 0.85), chunk("a", 2, 0.80), chunk("b", 0, 0.70)]
+
+    result = _limit_per_document(hits, k=4, max_per_doc=2)
+
+    assert contents(result) == ["a-0", "a-1", "a-2", "b-0"]  # a-2 (0.80) before b-0 (0.70)
+
+
+def test_fewer_than_k_only_when_candidates_run_out():
     hits = [chunk("a", 0), chunk("a", 1), chunk("a", 2)]
 
-    assert contents(_limit_per_document(hits, k=5, max_per_doc=2)) == ["a-0", "a-1"]
+    assert contents(_limit_per_document(hits, k=5, max_per_doc=2)) == ["a-0", "a-1", "a-2"]
 
 
 def test_limit_of_nothing_is_nothing():

@@ -35,7 +35,8 @@ flowchart LR
    with its document's title; the stored text is the plain chunk. Stored in `chunks` with an
    HNSW cosine index.
 3. **Search** (`app/retrieval`): embeds the question (with the bge query instruction) and
-   returns the k most similar chunks, at most 2 from any one document.
+   returns the k most similar chunks, at most 2 from any one document while others can fill
+   the slots.
 4. **Answer** (`app/rag`): puts the chunks into a prompt as numbered sources and asks Claude to
    answer only from them, citing each claim as `[N]`. Source text is treated as data: tags in it
    are escaped so a page can't fake or close a source. If Claude is unavailable, declines or is
@@ -158,6 +159,12 @@ model didn't invent facts, didn't follow either injection, and said so whenever 
 lacked the answer. The gaps are in search: in 3 of the 5 short cases, the per-document cap
 left only 2 chunks of one long postmortem, none with the cause.
 
+Backfilling those empty slots (see Design decisions) gave these cases 5 sources and visibly
+fuller answers, with 27/27 still passing, but `context_sufficient` stayed at 16/21. Ranking
+every chunk showed why: for "Why was Roblox down for 73 hours?" the chunks that restate the
+incident rank highest, while the ones that explain it (Consul, BoltDB) rank 10th and 11th.
+Similarity search finds text that sounds like the question, not text that answers it.
+
 Building the grader took two corrections found by reading pilot answers: a word check failed
 an answer that quoted the injected "BANANA" only to reject it, and "the right document was
 retrieved" turned out not to mean "the answer was in the sources".
@@ -170,7 +177,9 @@ retrieved" turned out not to mean "the answer was in the sources".
   title shares a word with the question.
 - **Per-document cap.** Long postmortems have many similar chunks and could fill every slot
   (one took 4 of 5), crowding out other incidents in cross-incident questions. Search fetches
-  `k * 4` candidates from the HNSW index and keeps at most 2 per document. pgvector's HNSW scan
+  `k * 4` candidates from the HNSW index and keeps at most 2 per document. When no other
+  document is left to fill a slot, it goes to the next-best chunk of the same document, so a
+  question about one long postmortem still gets k chunks. pgvector's HNSW scan
   returns at most `hnsw.ef_search` rows (default 40), so search raises it for the transaction
   when `k * 4` is larger.
 - **Title prefix for embeddings only.** A chunk from the middle of a postmortem often doesn't
@@ -285,7 +294,8 @@ change to an existing database by hand (for example with `ALTER TABLE` in
 - [x] Retrieval evaluation; per-document cap and title-aware embeddings measured against it
 - [x] CI: lint and tests against Postgres + pgvector
 - [x] Answer evaluation: citation validity, "not found" behaviour, prompt-injection cases
-- [ ] Backfill search slots when the per-document cap leaves fewer than k chunks
+- [x] Backfill search slots when the per-document cap leaves fewer than k chunks
+- [ ] Retrieve chunks that explain causes, not just restate the incident (larger k, reranker)
 - [ ] Hybrid search (vector + Postgres full-text) for exact names and error codes
 - [ ] Agent with tools (find similar incidents, compare incidents), structured extraction
       (root cause, duration, impact)

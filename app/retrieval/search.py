@@ -41,8 +41,10 @@ def search(
 ) -> list[Hit]:
     """Return up to k chunks most similar to the question, best first.
 
-    At most max_per_doc chunks come from any one document, so one long postmortem can't
-    fill every slot. Fewer than k are returned if the candidates span too few documents.
+    At most max_per_doc chunks come from any one document while other documents can fill the
+    slots, so one long postmortem can't crowd out the rest. Slots no other document can fill
+    go to more chunks of the same documents. Fewer than k are returned only if there are
+    fewer than k candidates in total.
     """
     if k <= 0:
         raise ValueError("k must be greater than 0")
@@ -69,17 +71,25 @@ def search(
 
 
 def _limit_per_document(hits: list[Hit], k: int, max_per_doc: int) -> list[Hit]:
-    """Keep the best hits, at most max_per_doc from each document, up to k in total."""
+    """Keep the best hits, at most max_per_doc from each document, up to k in total.
+
+    If that leaves fewer than k, the free slots go to the best skipped hits. The result is
+    sorted best first.
+    """
     kept: list[Hit] = []
     counts: dict[str, int] = {}
+    skipped: list[Hit] = []
     for hit in hits:
         if counts.get(hit.url, 0) >= max_per_doc:
+            skipped.append(hit)
             continue
         counts[hit.url] = counts.get(hit.url, 0) + 1
         kept.append(hit)
         if len(kept) == k:
             break
-    return kept
+    if len(kept) < k:
+        kept.extend(skipped[:k - len(kept)])
+    return sorted(kept, key=lambda hit: hit.score, reverse=True)
 
 
 if __name__ == "__main__":
