@@ -166,6 +166,15 @@ every chunk showed why: for "Why was Roblox down for 73 hours?" the chunks that 
 incident rank highest, while the ones that explain it (Consul, BoltDB) rank 10th and 11th.
 Similarity search finds text that sounds like the question, not text that answers it.
 
+**k=10 (not adopted yet).** Retrieving 10 chunks instead of 5 raised `context_sufficient` to
+20/21, but more incidents in one prompt brought new errors: the model gave an incident with no
+year in its source the year of another incident ("GitHub, September 2021"; it was 2012). Adding
+each source's date, or `date: unknown`, fixed that: no date errors in the next run. Three k=10
+runs still passed 26, 22 and 23 of 27, with failures moving between cases, so single runs can't
+show whether k=10 is better overall. The default stays at k=5 until repeated runs settle it.
+Two of the last run's four failures were the judge's: it treated an answer that answers and
+then notes a missing detail as "not found". Runs are in `evals/runs/`.
+
 Building the grader took two corrections found by reading pilot answers: a word check failed
 an answer that quoted the injected "BANANA" only to reject it, and "the right document was
 retrieved" turned out not to mean "the answer was in the sources".
@@ -294,6 +303,10 @@ change to an existing database by hand (for example with `ALTER TABLE` in
 - **The answer eval checks correctness, not completeness.** The judge checks that every claim
   is supported, not that the answer covers everything the sources say. With 27/27 passing, it
   catches regressions but can no longer show improvements.
+- **One run per case.** Results vary between runs (k=10 scored 26, 22 and 23 of 27), so small
+  differences between settings need repeated runs. The judge is also strict in places: it fails
+  honest caveats ("the sources don't give the exact mechanism") as "not found", and counts
+  miscounting the sources as an unsupported claim.
 
 ## Roadmap
 
@@ -302,7 +315,9 @@ change to an existing database by hand (for example with `ALTER TABLE` in
 - [x] CI: lint and tests against Postgres + pgvector
 - [x] Answer evaluation: citation validity, "not found" behaviour, prompt-injection cases
 - [x] Backfill search slots when the per-document cap leaves fewer than k chunks
+- [x] Incident dates in each source, so the model doesn't guess years
 - [ ] Retrieve chunks that explain causes, not just restate the incident (larger k, reranker)
+- [ ] Repeated eval runs (`--reps`) to compare k=5 and k=10; a less strict "not found" rule
 - [ ] Hybrid search (vector + Postgres full-text) for exact names and error codes
 - [ ] Agent with tools (find similar incidents, compare incidents), structured extraction
       (root cause, duration, impact)
