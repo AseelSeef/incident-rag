@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest version pyproject.toml allows, and the newest.
+        python-version: ["3.11", "3.14"]
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: incident_rag
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/incident_rag
+      # No API key: the tests replace the Claude client with fakes and never call the API.
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        run: pip install -e ".[dev]"
+
+      - name: Lint
+        run: ruff check app tests evals
+
+      # Service containers start before the checkout, so db/init.sql can't be mounted the way
+      # docker-compose.yml does it; create the schema here instead.
+      - name: Create the schema
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -f db/init.sql
+
+      # The embedding tests load the real model (about 130 MB); keep it between runs.
+      - uses: actions/cache@v4
+        with:
+          path: .cache/fastembed
+          key: fastembed-bge-small-en-v1.5
+
+      - name: Test
+        run: pytest -q
