@@ -1,7 +1,6 @@
 # Incident RAG
 
-A RAG agent that searches public incident postmortems, finds similar past
-incidents, and answers questions with citations.
+A retrieval-augmented question-answering system over public incident postmortems: it finds similar past incidents and answers with citations.
 
 > Work in progress. Phase 1 (ingestion, embeddings, retrieval, cited answers over an API) is done.
 
