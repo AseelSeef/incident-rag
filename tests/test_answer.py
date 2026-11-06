@@ -1,3 +1,5 @@
+from datetime import date
+
 import anthropic
 import httpx2
 import pytest
@@ -57,6 +59,23 @@ def test_each_source_has_title_company_url_and_content():
     assert "company: Company 1" in user
     assert "url: https://example.com/1" in user
     assert "Chunk text 1." in user
+
+
+def test_known_date_is_shown():
+    _, user = build_prompt("q", [hit(1, published=date(2021, 10, 4))])
+
+    assert "date: 2021-10-04" in user
+
+
+def test_missing_date_is_shown_as_unknown():
+    # An explicit "unknown" keeps the model from borrowing a year from another incident.
+    _, user = build_prompt("q", [hit(1)])
+
+    assert "date: unknown" in user
+
+
+def test_prompt_explains_unknown_dates():
+    assert '"date: unknown"' in SYSTEM_PROMPT
 
 
 def test_number_matches_its_source():

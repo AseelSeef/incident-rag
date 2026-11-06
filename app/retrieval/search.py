@@ -1,5 +1,6 @@
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 
 import psycopg
 
@@ -15,12 +16,13 @@ class Hit:
     url: str
     chunk_index: int
     score: float  # cosine similarity: 1 = identical, higher is better
+    published: date | None = None  # the document's date, if data/sources.csv has one
 
 
 # The query vector is sent as a plain list (a float array) and cast with ::vector, so the
 # connection doesn't need pgvector's register_vector().
 QUERY = """
-    SELECT c.content, c.chunk_index, d.title, d.company, d.source_url,
+    SELECT c.content, c.chunk_index, d.title, d.company, d.source_url, d.published,
            c.embedding <=> %(q)s::vector AS distance
     FROM chunks c
     JOIN documents d ON d.id = c.document_id
@@ -64,8 +66,9 @@ def search(
             url=url,
             chunk_index=chunk_index,
             score=1 - distance,
+            published=published,
         )
-        for content, chunk_index, title, company, url, distance in rows
+        for content, chunk_index, title, company, url, published, distance in rows
     ]
     return _limit_per_document(hits, k, max_per_doc)
 

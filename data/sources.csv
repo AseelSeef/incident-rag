@@ -10,37 +10,37 @@ Cloudflare Control Plane Outage,Cloudflare,2023-11-03,https://blog.cloudflare.co
 OpenAI API Outage,OpenAI,2023-03-21,https://status.openai.com/incidents/z0tly13xsyyb
 DALL-E Web Interface Down,OpenAI,2023-03-20,https://status.openai.com/incidents/4cckbrhr8hr0
 ChatGPT Outage,OpenAI,2023-03-16,https://status.openai.com/incidents/ds7h4z02flf5
-CircleCI jobs stuck after database field type change (Nov 2021),CircleCI,,https://discuss.circleci.com/t/incident-report-november-8-2021-jobs-stuck-in-a-not-running-state/41890
-Cloudflare outage from a database permissions change (Nov 2025),Cloudflare,,https://blog.cloudflare.com/18-november-2025-outage/
-Facebook global outage from backbone router config change,Facebook,,https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/
-GitHub DNS outage from a Puppet manifest bug,GitHub,,https://github.blog/news-insights/the-library/dns-outage-post-mortem/
-GoCardless API and dashboard outage (database cluster),GoCardless,,https://gocardless.com/blog/incident-review-api-and-dashboard-outage-on-10th-october/
-Heroku git push incident: config variables not applied,Heroku,,https://blog.heroku.com/how-i-broke-git-push-heroku-main
+CircleCI jobs stuck after database field type change (Nov 2021),CircleCI,2021-11-08,https://discuss.circleci.com/t/incident-report-november-8-2021-jobs-stuck-in-a-not-running-state/41890
+Cloudflare outage from a database permissions change (Nov 2025),Cloudflare,2025-11-18,https://blog.cloudflare.com/18-november-2025-outage/
+Facebook global outage from backbone router config change,Facebook,2021-10-04,https://engineering.fb.com/2021/10/05/networking-traffic/outage-details/
+GitHub DNS outage from a Puppet manifest bug,GitHub,2014-01-08,https://github.blog/news-insights/the-library/dns-outage-post-mortem/
+GoCardless API and dashboard outage (database cluster),GoCardless,2017-10-10,https://gocardless.com/blog/incident-review-api-and-dashboard-outage-on-10th-october/
+Heroku git push incident: config variables not applied,Heroku,2020-09-03,https://blog.heroku.com/how-i-broke-git-push-heroku-main
 crates.io static.crates.io DNS outage during a Terraform deploy (Jan 2023),rust-lang,2023-01-25,https://blog.rust-lang.org/inside-rust/2023/02/08/dns-outage-portmortem/
-"GitHub datacenter power disruption (Jan 28, 2016)",GitHub,,https://github.com/blog/2106-january-28th-incident-report
-PythonAnywhere storage volume failure outages,PythonAnywhere,,https://blog.pythonanywhere.com/189/
-GitHub schema migration breaks MySQL failover,GitHub,,https://github.blog/news-insights/the-library/github-availability-this-week/
-"GitHub availability report, May 2021 (foreign key hit INT32 max)",GitHub,,https://github.blog/news-insights/company-news/github-availability-report-may-2021/
+"GitHub datacenter power disruption (Jan 28, 2016)",GitHub,2016-01-28,https://github.com/blog/2106-january-28th-incident-report
+PythonAnywhere storage volume failure outages,PythonAnywhere,2020-07-07,https://blog.pythonanywhere.com/189/
+GitHub schema migration breaks MySQL failover,GitHub,2012-09-10,https://github.blog/news-insights/the-library/github-availability-this-week/
+"GitHub availability report, May 2021 (foreign key hit INT32 max)",GitHub,2021-05-16,https://github.blog/news-insights/company-news/github-availability-report-may-2021/
 incident.io two weeks of intermittent timeouts: database performance,incident.io,,https://incident.io/blog/database-performance
-"GitLab database outage of January 31, 2017",Gitlab,,https://about.gitlab.com/2017/02/10/postmortem-of-database-outage-of-january-31/
-"AWS S3 outage, February 28, 2017",Amazon,,https://aws.amazon.com/message/41926/
-AWS Lambda frontend fleet scaling outage,Amazon,,https://aws.amazon.com/message/061323/
-AWS Kinesis front-end cache fleet scaling outage,Amazon,,https://aws.amazon.com/message/11201/
-Atlassian April 2022 outage,Atlassian,,https://www.atlassian.com/engineering/post-incident-review-april-2022-outage
-Buildkite outage after a database capacity downgrade,Buildkite,,https://building.buildkite.com/outage-post-mortem-for-august-23rd-82b619a3679b
-"Fastly global outage, June 8",Fastly,,https://www.fastly.com/blog/summary-of-june-8-outage
-Honeycomb ingest outage: Shepherd cache delays (Sep 2022),Honeycomb,,https://www.honeycomb.io/blog/incident-review-shepherd-cache-delays/
-"Honeycomb total outage, July 25, 2023",Honeycomb,,https://www.honeycomb.io/blog/incident-review-what-comes-up-must-first-go-down/
-incident.io intermittent downtime from a poison-pill event,incident.io,,https://incident.io/blog/intermittent-downtime
-Mandrill outage from Postgres transaction ID wraparound,Mandrill,,https://mailchimp.com/what-we-learned-from-the-recent-mandrill-outage/
-"Slack outage, January 4, 2021",Slack,,https://slack.engineering/slacks-outage-on-january-4th-2021/
-"Slack incident, February 22, 2022",Slack,,https://slack.engineering/slacks-incident-on-2-22-22/
-Twilio billing incident: Redis network partition (2013),Twilio,,https://www.twilio.com/blog/2013/07/billing-incident-post-mortem-breakdown-analysis-and-root-cause.html
-"Roblox 73-hour outage, October 2021",Roblox,,https://blog.roblox.com/2022/01/roblox-return-to-service-10-28-10-31-2021/
+"GitLab database outage of January 31, 2017",Gitlab,2017-01-31,https://about.gitlab.com/2017/02/10/postmortem-of-database-outage-of-january-31/
+"AWS S3 outage, February 28, 2017",Amazon,2017-02-28,https://aws.amazon.com/message/41926/
+AWS Lambda frontend fleet scaling outage,Amazon,2023-06-13,https://aws.amazon.com/message/061323/
+AWS Kinesis front-end cache fleet scaling outage,Amazon,2020-11-25,https://aws.amazon.com/message/11201/
+Atlassian April 2022 outage,Atlassian,2022-04-05,https://www.atlassian.com/engineering/post-incident-review-april-2022-outage
+Buildkite outage after a database capacity downgrade,Buildkite,2016-08-22,https://building.buildkite.com/outage-post-mortem-for-august-23rd-82b619a3679b
+"Fastly global outage, June 8",Fastly,2021-06-08,https://www.fastly.com/blog/summary-of-june-8-outage
+Honeycomb ingest outage: Shepherd cache delays (Sep 2022),Honeycomb,2022-09-08,https://www.honeycomb.io/blog/incident-review-shepherd-cache-delays/
+"Honeycomb total outage, July 25, 2023",Honeycomb,2023-07-25,https://www.honeycomb.io/blog/incident-review-what-comes-up-must-first-go-down/
+incident.io intermittent downtime from a poison-pill event,incident.io,2022-11-18,https://incident.io/blog/intermittent-downtime
+Mandrill outage from Postgres transaction ID wraparound,Mandrill,2019-02-04,https://mailchimp.com/what-we-learned-from-the-recent-mandrill-outage/
+"Slack outage, January 4, 2021",Slack,2021-01-04,https://slack.engineering/slacks-outage-on-january-4th-2021/
+"Slack incident, February 22, 2022",Slack,2022-02-22,https://slack.engineering/slacks-incident-on-2-22-22/
+Twilio billing incident: Redis network partition (2013),Twilio,2013-07-18,https://www.twilio.com/blog/2013/07/billing-incident-post-mortem-breakdown-analysis-and-root-cause.html
+"Roblox 73-hour outage, October 2021",Roblox,2021-10-28,https://blog.roblox.com/2022/01/roblox-return-to-service-10-28-10-31-2021/
 Datadog multiregion outage: automatic upgrade removed all network rules (Mar 2023),Datadog,2023-03-08,https://www.datadoghq.com/blog/2023-03-08-multiregion-infrastructure-connectivity-issue/
 LaunchDarkly disruption caused by the AWS us-east-1 outage (Oct 2025),Launchdarkly,2025-10-20,https://launchdarkly.com/blog/what-happened-what-we-learned-and-how-were-improving/
 Turso: empty backup identifiers caused a data leak and loss in free-tier databases (Dec 2023),Turso,2023-12-04,https://blog.turso.tech/incident-2023-12-04-data-leak-and-loss-in-some-free-tier-databases-7cba5bc7
 Google Cloud incident impacting UniSuper (GCVE private cloud),Google,,https://cloud.google.com/blog/products/infrastructure/details-of-google-cloud-gcve-incident
-Tarsnap: S3 batch job that frees unused blocks failed all retries,Tarsnap,,https://mail.tarsnap.com/tarsnap-announce/msg00035.html
+Tarsnap: S3 batch job that frees unused blocks failed all retries,Tarsnap,2016-07-24,https://mail.tarsnap.com/tarsnap-announce/msg00035.html
 "Basecamp network DDoS attack (Mar 24, 2014)",Basecamp,2014-03-24,https://signalvnoise.com/posts/3729-basecamp-network-attack-postmortem
 Zerodha order management system collapse after a 1M-unit penny stock order (Aug 2019),Zerodha,2019-08-29,https://zerodha.com/marketintel/bulletin/229363/post-mortem-of-technical-issue-august-29-2019

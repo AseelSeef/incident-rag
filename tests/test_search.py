@@ -1,4 +1,5 @@
 import math
+from datetime import date
 from itertools import pairwise
 
 import pytest
@@ -231,3 +232,23 @@ def test_fewer_than_k_only_when_candidates_run_out():
 
 def test_limit_of_nothing_is_nothing():
     assert _limit_per_document([], k=5, max_per_doc=2) == []
+
+
+def test_hit_carries_the_document_date(docs):
+    add_document(
+        docs,
+        "https://search.test/dated",
+        [("search-test dated", 0.99)],
+        date=date(2021, 10, 4),
+    )
+
+    hits = search(docs, "anything", k=5, embed=query_vector)
+
+    (dated,) = [h for h in hits if h.url == "https://search.test/dated"]
+    assert dated.published == date(2021, 10, 4)
+
+
+def test_hit_without_a_date_has_none(docs):
+    hits = search(docs, "anything", k=1, embed=query_vector)
+
+    assert hits[0].published is None  # the docs fixture's documents have no date

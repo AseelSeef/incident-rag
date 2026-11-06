@@ -13,3 +13,4 @@ data/raw/
 # eval runs: keep only the named baselines
 evals/runs/answer-pilot*.jsonl
 evals/runs/*.errors.jsonl
+evals/runs/*-s17-*.jsonl
