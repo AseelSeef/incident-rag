@@ -25,21 +25,36 @@ QUERY = """
     FROM chunks c
     JOIN documents d ON d.id = c.document_id
     ORDER BY c.embedding <=> %(q)s::vector
-    LIMIT %(k)s
+    LIMIT %(limit)s
 """
+
+# Fetch k * 4 chunks, so enough are left after the per-document cap drops some.
+CANDIDATES_PER_RESULT = 4
 
 
 def search(
     conn: psycopg.Connection,
     question: str,
     k: int = 5,
+    max_per_doc: int = 2,
     embed: Callable[[str], list[float]] = embed_query,
 ) -> list[Hit]:
-    """Return the k chunks most similar to the question, best first."""
+    """Return up to k chunks most similar to the question, best first.
+
+    At most max_per_doc chunks come from any one document, so one long postmortem can't
+    fill every slot. Fewer than k are returned if the candidates span too few documents.
+    """
     if k <= 0:
         raise ValueError("k must be greater than 0")
-    rows = conn.execute(QUERY, {"q": embed(question), "k": k}).fetchall()
-    return [
+    if max_per_doc <= 0:
+        raise ValueError("max_per_doc must be greater than 0")
+    limit = k * CANDIDATES_PER_RESULT
+    # The HNSW index returns at most hnsw.ef_search rows (default 40), whatever LIMIT says.
+    # set_config(..., true) applies to this transaction only, like SET LOCAL; plain SET
+    # can't take a query parameter.
+    conn.execute("SELECT set_config('hnsw.ef_search', %s, true)", (str(max(limit, 40)),))
+    rows = conn.execute(QUERY, {"q": embed(question), "limit": limit}).fetchall()
+    hits = [
         Hit(
             content=content,
             title=title,
@@ -50,6 +65,22 @@ def search(
         )
         for content, chunk_index, title, company, url, distance in rows
     ]
+    return _limit_per_document(hits, k, max_per_doc)
+
+
+def _limit_per_document(hits: list[Hit], k: int, max_per_doc: int) -> list[Hit]:
+    """Keep the best hits, at most max_per_doc from each document, up to k in total."""
+    kept: list[Hit] = []
+    counts: dict[str, int] = {}
+    for hit in hits:
+        if counts.get(hit.url, 0) >= max_per_doc:
+            continue
+        counts[hit.url] = counts.get(hit.url, 0) + 1
+        kept.append(hit)
+        if len(kept) == k:
+            break
+    return kept
+
 
 if __name__ == "__main__":
     questions = [

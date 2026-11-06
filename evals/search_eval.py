@@ -4,6 +4,7 @@ Makes no Claude calls, so it is free; run it after every change to chunking, emb
 
     python -m evals.search_eval          # k=5, like /ask
     python -m evals.search_eval --k 10
+    python -m evals.search_eval --max-per-doc 1
 
 Questions live in evals/questions.jsonl, one JSON object per line:
     {"question": "...", "expected_urls": ["https://..."]}
@@ -105,15 +106,18 @@ def run(
     conn: psycopg.Connection,
     questions: list[Question],
     k: int = 5,
+    max_per_doc: int = 2,
     search_fn: Callable[..., list[Hit]] = search,
 ) -> list[Result]:
-    return [Result(q, search_fn(conn, q.question, k=k)) for q in questions]
+    return [
+        Result(q, search_fn(conn, q.question, k=k, max_per_doc=max_per_doc)) for q in questions
+    ]
 
 
-def print_report(results: list[Result], k: int) -> None:
+def print_report(results: list[Result], k: int, max_per_doc: int) -> None:
     titles = {hit.url: f"{hit.company}: {hit.title}" for r in results for hit in r.hits}
 
-    print(f"Answerable questions (k={k} chunks)\n")
+    print(f"Answerable questions (k={k} chunks, at most {max_per_doc} per document)\n")
     for r in results:
         if not r.question.answerable:
             continue
@@ -137,14 +141,17 @@ def print_report(results: list[Result], k: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score search against evals/questions.jsonl")
     parser.add_argument("--k", type=int, default=5, help="chunks to retrieve (default 5)")
+    parser.add_argument(
+        "--max-per-doc", type=int, default=2, help="chunks per document (default 2)"
+    )
     args = parser.parse_args()
 
     questions = load_questions()
     with psycopg.connect(settings.database_url, connect_timeout=5) as conn:
         for url in unknown_urls(questions, existing_urls(conn)):
             print(f"WARNING: expected URL is not in the database: {url}")
-        results = run(conn, questions, k=args.k)
-    print_report(results, args.k)
+        results = run(conn, questions, k=args.k, max_per_doc=args.max_per_doc)
+    print_report(results, args.k, args.max_per_doc)
 
 
 if __name__ == "__main__":

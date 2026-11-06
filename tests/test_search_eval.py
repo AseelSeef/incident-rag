@@ -124,14 +124,15 @@ def test_unknown_urls():
 # --- running ---
 
 
-def test_run_searches_each_question_with_k():
+def test_run_searches_each_question_with_k_and_cap():
     calls = []
 
-    def fake_search(conn, question, k):
-        calls.append((question, k))
+    def fake_search(conn, question, k, max_per_doc):
+        calls.append((question, k, max_per_doc))
         return [hit("a")]
 
-    results = run(None, [Question("one?", ["a"]), Question("two?", [])], k=7, search_fn=fake_search)
+    questions = [Question("one?", ["a"]), Question("two?", [])]
+    results = run(None, questions, k=7, max_per_doc=3, search_fn=fake_search)
 
-    assert calls == [("one?", 7), ("two?", 7)]
+    assert calls == [("one?", 7, 3), ("two?", 7, 3)]
     assert [r.urls for r in results] == [["a"], ["a"]]
