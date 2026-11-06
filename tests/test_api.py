@@ -1,5 +1,7 @@
+import psycopg
 import pytest
 from fastapi.testclient import TestClient
+from psycopg_pool import PoolTimeout
 
 import app.main
 from app.main import app as api
@@ -186,3 +188,46 @@ def test_get_is_not_allowed(client):
 
 def test_health_still_works(client):
     assert client.get("/health").json() == {"status": "ok"}
+
+
+# --- database unavailable ---
+
+
+def test_lost_database_connection_returns_503(client, monkeypatch, caplog):
+    def database_gone(conn, question, k):
+        raise psycopg.OperationalError("server closed the connection unexpectedly")
+
+    monkeypatch.setattr(app.main, "answer_question", database_gone)
+
+    with caplog.at_level("WARNING", logger="app.main"):
+        response = client.post("/ask", json={"question": "Why?"})
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "database unavailable"}
+    assert "server closed the connection" in caplog.text  # the cause is logged, not returned
+
+
+def test_no_connection_from_the_pool_returns_503(fake):
+    # What get_conn raises when Postgres is down: the pool gives up after its timeout.
+    def pool_timeout():
+        raise PoolTimeout("couldn't get a connection after 5.00 sec")
+
+    api.dependency_overrides[get_conn] = pool_timeout
+    try:
+        response = TestClient(api).post("/ask", json={"question": "Why?"})
+    finally:
+        api.dependency_overrides.clear()
+
+    assert response.status_code == 503
+    assert response.json() == {"detail": "database unavailable"}
+    assert fake.calls == []
+
+
+def test_other_errors_are_not_reported_as_database_errors(client, monkeypatch):
+    def bug(conn, question, k):
+        raise RuntimeError("a bug")
+
+    monkeypatch.setattr(app.main, "answer_question", bug)
+
+    with pytest.raises(RuntimeError):  # TestClient re-raises server errors by default
+        client.post("/ask", json={"question": "Why?"})
