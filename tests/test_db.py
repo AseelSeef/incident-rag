@@ -3,7 +3,7 @@ from datetime import date
 import pytest
 
 from app.embeddings import EMBEDDING_DIM
-from app.ingestion.db import existing_urls, replace_chunks, upsert_document
+from app.ingestion.db import existing_urls, replace_chunks, update_metadata, upsert_document
 from app.ingestion.sources import Source
 
 
@@ -111,17 +111,89 @@ def test_same_content_keeps_updated_at(conn):
     assert updated_at(conn, doc_id) == before
 
 
-def test_metadata_change_alone_keeps_updated_at(conn):
-    # Title/company/date are still saved, but don't count as an edit: chunks come from the text.
+def test_company_or_date_change_keeps_updated_at(conn):
+    # Saved, but not an edit: company and date aren't embedded, so no re-index is needed.
     doc_id = upsert_document(conn, make_source(), "same text")
     backdate(conn, doc_id)
     before = updated_at(conn, doc_id)
 
-    upsert_document(conn, make_source(title="Renamed", company="Acme Inc"), "same text")
+    upsert_document(conn, make_source(company="Acme Inc", date=date(2020, 5, 6)), "same text")
 
-    title, _, company, _, _ = fetch_row(conn, doc_id)
-    assert (title, company) == ("Renamed", "Acme Inc")
+    _, _, company, published, _ = fetch_row(conn, doc_id)
+    assert (company, published) == ("Acme Inc", date(2020, 5, 6))
     assert updated_at(conn, doc_id) == before
+
+
+def test_title_change_bumps_updated_at(conn):
+    # Each chunk is embedded with its title, so a new title makes the embeddings stale.
+    doc_id = upsert_document(conn, make_source(), "same text")
+    backdate(conn, doc_id)
+    before = updated_at(conn, doc_id)
+
+    upsert_document(conn, make_source(title="Renamed"), "same text")
+
+    assert fetch_row(conn, doc_id)[0] == "Renamed"
+    assert updated_at(conn, doc_id) > before
+
+
+# --- update_metadata: details from the CSV, without downloading again ---
+
+
+def test_update_metadata_sets_a_new_date(conn):
+    doc_id = upsert_document(conn, make_source(date=None), "the content")
+
+    changed = update_metadata(conn, make_source(date=date(2021, 10, 4)))
+
+    assert changed is True
+    assert fetch_row(conn, doc_id)[3] == date(2021, 10, 4)
+
+
+def test_update_metadata_leaves_the_content_alone(conn):
+    doc_id = upsert_document(conn, make_source(), "the content")
+
+    update_metadata(conn, make_source(title="Renamed", company="Other"))
+
+    assert fetch_row(conn, doc_id)[1:] == (make_source().url, "Other", date(2024, 1, 2), "the content")
+
+
+def test_update_metadata_without_changes_returns_false(conn):
+    doc_id = upsert_document(conn, make_source(), "the content")
+    backdate(conn, doc_id)
+    before = updated_at(conn, doc_id)
+
+    assert update_metadata(conn, make_source()) is False
+    assert updated_at(conn, doc_id) == before
+
+
+def test_update_metadata_for_unknown_url_returns_false(conn):
+    assert update_metadata(conn, make_source(url="https://example.com/not-stored")) is False
+
+
+def test_update_metadata_can_clear_a_date(conn):
+    doc_id = upsert_document(conn, make_source(), "the content")
+
+    assert update_metadata(conn, make_source(date=None)) is True
+    assert fetch_row(conn, doc_id)[3] is None
+
+
+def test_update_metadata_date_change_keeps_updated_at(conn):
+    doc_id = upsert_document(conn, make_source(), "the content")
+    backdate(conn, doc_id)
+    before = updated_at(conn, doc_id)
+
+    update_metadata(conn, make_source(date=date(2020, 1, 1)))
+
+    assert updated_at(conn, doc_id) == before
+
+
+def test_update_metadata_title_change_bumps_updated_at(conn):
+    doc_id = upsert_document(conn, make_source(), "the content")
+    backdate(conn, doc_id)
+    before = updated_at(conn, doc_id)
+
+    update_metadata(conn, make_source(title="Renamed"))
+
+    assert updated_at(conn, doc_id) > before
 
 
 def test_different_urls_get_different_ids(conn):

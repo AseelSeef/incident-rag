@@ -1,3 +1,5 @@
+from datetime import date
+
 import httpx
 import pytest
 
@@ -141,6 +143,38 @@ def test_skipped_url_is_not_fetched(db):
     assert requested == []
 
 
+def test_changed_date_of_existing_url_is_updated_without_fetching(db):
+    requested = []
+
+    def recording_handler(request):
+        requested.append(str(request.url))
+        return handler(request)
+
+    with httpx.Client(transport=httpx.MockTransport(recording_handler)) as c:
+        ingest(db, c, [src(GOOD)])
+        requested.clear()
+        dated = Source(title="Outage", company="Acme", url=GOOD, date=date(2021, 10, 4))
+        report = ingest(db, c, [dated])
+
+    assert requested == []  # not downloaded again
+    assert report.skipped == [GOOD]
+    assert report.updated == [GOOD]
+    (published,) = db.execute(
+        "SELECT published FROM documents WHERE source_url = %s", (GOOD,)
+    ).fetchone()
+    assert published == date(2021, 10, 4)
+
+
+def test_unchanged_existing_url_is_not_reported_as_updated(db, client):
+    ingest(db, client, [src(GOOD)])
+    commits_before = len(db.commits)
+
+    report = ingest(db, client, [src(GOOD)])
+
+    assert report.updated == []
+    assert len(db.commits) == commits_before  # nothing to save
+
+
 def test_force_refetches_existing_url(db, client):
     ingest(db, client, [src(GOOD)])
 
@@ -181,12 +215,19 @@ def test_zero_delay_never_sleeps(db, client, no_sleep):
 
 
 def test_print_report(capsys):
-    report = Report(ok=["a"], skipped=["b", "c"], failed=[("d", "boom")])
+    report = Report(ok=["a"], skipped=["b", "c"], updated=["c"], failed=[("d", "boom")])
 
     print_report(report)
 
     out = capsys.readouterr().out
     assert "Stored:  1" in out
     assert "Skipped: 2" in out
+    assert "Updated: 1" in out
     assert "Failed:  1" in out
     assert "d" in out and "boom" in out
+
+
+def test_print_report_hides_updated_when_none(capsys):
+    print_report(Report(ok=["a"]))
+
+    assert "Updated" not in capsys.readouterr().out

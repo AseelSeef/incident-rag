@@ -10,12 +10,28 @@ UPSERT_SQL = """
         company    = EXCLUDED.company,
         published  = EXCLUDED.published,
         content    = EXCLUDED.content,
-        -- Only a change to the text counts as an edit, so unchanged documents aren't re-indexed.
+        -- Only a change to what gets embedded counts as an edit, so unchanged documents aren't
+        -- re-indexed: the text, and the title (each chunk is embedded with it).
         updated_at = CASE
-            WHEN documents.content IS DISTINCT FROM EXCLUDED.content THEN now()
+            WHEN documents.content IS DISTINCT FROM EXCLUDED.content
+              OR documents.title IS DISTINCT FROM EXCLUDED.title THEN now()
             ELSE documents.updated_at
         END
     RETURNING id
+"""
+
+# Updates the CSV details of a stored document without downloading it again. Only rows whose
+# details differ are touched. In SET, `title` still means the old value, so a new title marks
+# the document for re-indexing; company and date aren't embedded, so they don't.
+UPDATE_METADATA_SQL = """
+    UPDATE documents SET
+        title      = %(title)s,
+        company    = %(company)s,
+        published  = %(published)s,
+        updated_at = CASE WHEN title IS DISTINCT FROM %(title)s THEN now() ELSE updated_at END
+    WHERE source_url = %(url)s
+      AND (title, company, published)
+          IS DISTINCT FROM (%(title)s::text, %(company)s::text, %(published)s::date)
 """
 
 
@@ -35,6 +51,23 @@ def upsert_document(conn: psycopg.Connection, source: Source, content: str) -> i
         },
     ).fetchone()
     return row[0]
+
+
+def update_metadata(conn: psycopg.Connection, source: Source) -> bool:
+    """Copy title, company and date from the source to its stored document, if they changed.
+
+    Returns True if the document was updated. Does not commit.
+    """
+    cursor = conn.execute(
+        UPDATE_METADATA_SQL,
+        {
+            "title": source.title,
+            "url": source.url,
+            "company": source.company,
+            "published": source.date,
+        },
+    )
+    return cursor.rowcount == 1
 
 
 def existing_urls(conn: psycopg.Connection) -> set[str]:

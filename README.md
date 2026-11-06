@@ -28,7 +28,8 @@ flowchart LR
 
 1. **Ingest** (`app/ingestion`): downloads each postmortem listed in `data/sources.csv`,
    extracts the main text with trafilatura, and stores it in `documents`. Already stored URLs
-   are skipped; a document's `updated_at` changes only when its text changes.
+   aren't downloaded again, but their title, company and incident date are updated from the
+   CSV. A document's `updated_at` changes only when its text or title (both embedded) change.
 2. **Index** (`app/indexing`): splits each new or changed document into overlapping chunks
    (by paragraph, up to 1000 characters) and embeds them locally with
    `BAAI/bge-small-en-v1.5` (384 dimensions, via fastembed). Each chunk is embedded together
@@ -199,6 +200,12 @@ retrieved" turned out not to mean "the answer was in the sources".
 - **Re-index only what changed.** `indexed_at` stores the `updated_at` of the version that was
   embedded, and re-ingesting identical text doesn't touch `updated_at`, so running the pipeline
   again only embeds new or changed documents.
+- **Give the model the dates, including "unknown".** With 10 sources, the model put a year on
+  an incident whose source has none, borrowing it from another incident in the same prompt
+  ("GitHub, September 2021"; it was 2012). A prompt rule alone didn't stop it reliably. Each
+  source now carries `date: 2012-09-10`, or `date: unknown` when the date isn't known, so the
+  gap is visible instead of something to fill. Incident dates in `data/sources.csv` were
+  checked against each page.
 
 ## Testing
 
@@ -219,7 +226,7 @@ ruff check app tests evals
 
 | Command | What it does |
 |---|---|
-| `python -m app.ingestion.run` | Fetch and store sources. `--limit N`, `--force` (re-fetch stored URLs), `--delay` |
+| `python -m app.ingestion.run` | Fetch and store new sources; update title, company and date of stored ones. `--limit N`, `--force` (re-fetch stored URLs), `--delay` |
 | `python -m app.indexing.run` | Chunk and embed new or changed documents. `--force` re-indexes all |
 | `uvicorn app.main:app --reload` | Start the API on port 8000 |
 | `python -m evals.search_eval` | Score search against `evals/questions.jsonl` (free). `--k N`, `--max-per-doc N` |

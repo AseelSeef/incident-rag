@@ -9,7 +9,7 @@ import httpx
 import psycopg
 
 from app.config import settings
-from app.ingestion.db import existing_urls, upsert_document
+from app.ingestion.db import existing_urls, update_metadata, upsert_document
 from app.ingestion.extract import extract_text
 from app.ingestion.fetch import FetchError, fetch_html, make_client
 from app.ingestion.sources import Source, load_sources
@@ -23,6 +23,7 @@ DEFAULT_SOURCES = Path(__file__).resolve().parents[2] / "data" / "sources.csv"
 class Report:
     ok: list[str] = field(default_factory=list)
     skipped: list[str] = field(default_factory=list)
+    updated: list[str] = field(default_factory=list)  # skipped, but details changed in the CSV
     failed: list[tuple[str, str]] = field(default_factory=list)
 
 
@@ -35,7 +36,8 @@ def ingest(
 ) -> Report:
     """Fetch, extract and store each source. Commits after every document.
 
-    URLs already in the database are skipped unless `force` is set.
+    URLs already in the database are not downloaded again unless `force` is set, but their
+    title, company and date are updated from the source if they changed.
     `delay` is the pause in seconds between downloads, to be polite to the sites.
     """
     report = Report()
@@ -45,6 +47,10 @@ def ingest(
     for source in sources:
         if source.url in done:
             report.skipped.append(source.url)
+            if update_metadata(conn, source):
+                conn.commit()
+                log.info("updated details of %s", source.url)
+                report.updated.append(source.url)
             continue
 
         if fetched_any and delay > 0:
@@ -76,6 +82,8 @@ def ingest(
 def print_report(report: Report) -> None:
     print(f"\nStored:  {len(report.ok)}")
     print(f"Skipped: {len(report.skipped)} (already in database)")
+    if report.updated:
+        print(f"Updated: {len(report.updated)} (title, company or date changed in the CSV)")
     print(f"Failed:  {len(report.failed)}")
     for url, reason in report.failed:
         print(f"  - {url}\n      {reason}")
